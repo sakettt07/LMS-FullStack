@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { connectDB } from './Database/db.js';
 import { errorMiddleware } from './Middlewares/Error.Middleware.js';
+import userRoutes from './Routes/user.routes.js';
 
 const app = express();
 
@@ -25,7 +26,11 @@ app.use(fileUpload({
     useTempFiles: true,
     tempFileDir: '/tmp/',
 }))
+ //Define all the routes.
+ app.use("/api/v1/user",userRoutes);
+
 connectDB();
 app.use(errorMiddleware);
- //Define all the routes.
+
+
  export{app};
