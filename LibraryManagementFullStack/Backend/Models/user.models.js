@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 const userSchema = new mongoose.Schema({
     name: {
@@ -90,16 +91,20 @@ userSchema.pre("save", async function (next) {
   userSchema.methods.comparepassword=async function(password){
     return await bcrypt.compare(password, this.password);
   }
- userSchema.methods.genrerateVerificationCode=function(){
-    function genrerateRandomFiveDigitCode(){
+ userSchema.methods.generateVerificationCode=function(){
+    function generateRandomFiveDigitCode(){
         const firstDigit = Math.floor(Math.random() * 9) + 1; 
         const remainingDigits = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
         return parseInt(firstDigit.toString() + remainingDigits);
     }
-    const verificationCode=genrerateRandomFiveDigitCode();
+    const verificationCode=generateRandomFiveDigitCode();
     this.verificationCode=verificationCode;
     this.verificationCodeExpire=Date.now() + 2 * 60 * 1000;
     return verificationCode;
  } 
+
+ userSchema.methods.generateToken=function(){
+    return jwt.sign({id:this._id}, process.env.JWT_SECRET_KEY, {expiresIn:process.env.JWT_EXPIRES_IN});
+  }
 
  export const User = mongoose.model("User", userSchema);

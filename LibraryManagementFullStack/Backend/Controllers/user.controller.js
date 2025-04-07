@@ -1,44 +1,52 @@
 import ApiError from '../Middlewares/Error.Middleware.js';
 import {User} from '../Models/user.models.js';
 import { asyncHandler } from '../Utils/asyncHandler.js';
+import { sendToken } from '../Utils/sendToken.js';
 import { sendVerificationCode } from '../Utils/sendVerificationCode.js';
 
 
-const registerUser=asyncHandler(async (req,res)=>{
-    const {name,email,password}=req.body;
-    if(!name || !email || !password){
-        throw new ApiError('Please provide all the fields',400);
-    }
-    const isRegistered=await User.findOne({email,accountVerified:true});
-    if(isRegistered){
-        throw new ApiError('User already registered',400);
-    }
-    // for handling the number of attempts he made to register
-    const registerAttemptsMade=await User.find({
-        email,
-        accountVerified:false
-    });
-    if(registerAttemptsMade.length>=5){
-        throw new ApiError('You have made too many attempts to register',400);
-    }
-    if(password.length<8 || password.length>20){
-        throw new ApiError('Password must be between 8 and 20 characters',400);
-    }
-    const user=await User.create({
-        name,
-        email,
-        password,
-    });
-    // now we will be generating a verification code to its email
-    const verificationCode=await user.genrerateVerificationCode();
-    await user.save();
-    sendVerificationCode(verificationCode,email,res);
+const registerUser = asyncHandler(async (req, res) => {
+    const { name, email, password } = req.body;
 
+    if (!name || !email || !password) {
+        throw new ApiError('Please provide all the fields', 400);
+    }
+    const isRegistered = await User.findOne({ email, accountVerified: true });
+    if (isRegistered) {
+        throw new ApiError('User already registered', 400);
+    }
+    let user = await User.findOne({ email, accountVerified: false }).sort({ createdAt: -1 });
+    if (user) {
+        if (user.verificationCodeExpire < Date.now()) {
+            console.log("♻️ Reusing existing user and regenerating OTP.");
+            user.name = name;
+            user.password = password;
+            const verificationCode = user.generateVerificationCode();
+            await user.save();
+            return await sendVerificationCode(verificationCode, email, res);
+        } else {
+            throw new ApiError("A verification code was already sent. Please wait before trying again.", 400);
+        }
+    }
+    const attempts = await User.countDocuments({ email, accountVerified: false });
+    if (attempts >= 5) {
+        throw new ApiError('You have made too many attempts to register', 400);
+    }
+    if (password.length < 8 || password.length > 20) {
+        throw new ApiError('Password must be between 8 and 20 characters', 400);
+    }
+    user = await User.create({ name, email, password });
+    const verificationCode = user.generateVerificationCode();
+    await user.save();
+
+    await sendVerificationCode(verificationCode, email, res);
 });
+
+
 const verifyOtp=asyncHandler(async(req,res)=>{
-    const {email,verificationCode}=req.body;
+    const {email,verificationCode}=req.body||{};
     if(!email || !verificationCode){
-        throw new ApiError('Please provide all the fields',400);
+        throw new ApiError('Email and OTP is required for verification',400);
     }
     const userEntries=await User.find({
         email,
@@ -57,7 +65,6 @@ const verifyOtp=asyncHandler(async(req,res)=>{
             email,
             accountVerified:false
         })
-
     }
     else{
         user=userEntries[0];
