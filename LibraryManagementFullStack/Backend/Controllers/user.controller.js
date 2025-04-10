@@ -52,18 +52,22 @@ const registerUser = asyncHandler(async (req, res) => {
 
 const verifyOtp = asyncHandler(async (req, res) => {
     const { email, verificationCode } = req.body || {};
+
     if (!email || !verificationCode) {
         throw new ApiError('Email and OTP is required for verification', 400);
     }
+
     const userEntries = await User.find({
         email,
         accountVerified: false
     }).sort({ createdAt: -1 });
-    if (userEntries.length === 0) {
+
+    if (!userEntries || userEntries.length === 0) {
         throw new ApiError('No such user found', 404);
     }
+
     let user = userEntries[0];
-    // Delete older attempts (except the latest one)
+
     if (userEntries.length > 1) {
         await User.deleteMany({
             _id: { $ne: user._id },
@@ -71,19 +75,24 @@ const verifyOtp = asyncHandler(async (req, res) => {
             accountVerified: false
         });
     }
+
     if (String(user.verificationCode) !== String(verificationCode)) {
         throw new ApiError('Invalid verification code', 400);
     }
-    const currentTime = Date.now();
-    const verificationCodeExpire = new Date(user.verificationCodeExpire).getTime();
 
-    if (currentTime > verificationCodeExpire) {
+    const currentTime = Date.now();
+    const codeExpiry = new Date(user.verificationCodeExpire).getTime();
+
+    if (currentTime > codeExpiry) {
         throw new ApiError('Verification code expired', 400);
     }
+
     user.accountVerified = true;
     user.verificationCode = null;
     user.verificationCodeExpire = null;
+
     await user.save({ validateModifiedOnly: true });
+
     return sendToken(user, 200, "Account Verified", res);
 });
 

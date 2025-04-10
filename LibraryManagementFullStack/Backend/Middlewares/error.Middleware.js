@@ -17,17 +17,14 @@ export const errorMiddleware = (err, req, res, next) => {
   if (err.name === "JsonWebTokenError") {
     err = new ApiError("Invalid token. Please try again.", 401);
   }
-
   if (err.name === "TokenExpiredError") {
     err = new ApiError("Token expired. Please login again.", 401);
   }
-
   // Mongoose bad ObjectId
   if (err.name === "CastError") {
     const message = `Invalid ${err.path}`;
     err = new ApiError(message, 400);
   }
-
   // Mongoose validation errors
   const errorMessage = err.errors
     ? Object.values(err.errors).map((e) => e.message).join(" ")
