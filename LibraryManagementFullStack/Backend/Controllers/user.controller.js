@@ -18,35 +18,19 @@ const registerUser = asyncHandler(async (req, res) => {
     if (isRegistered) {
         throw new ApiError('User already registered', 400);
     }
-    const unverifiedUsers = await User.find({ email, accountVerified: false }).sort({ createdAt: -1 });
 
-    if (unverifiedUsers.length >= 5) {
-        throw new ApiError('You have made too many attempts to register', 400);
+    const registerationAttemptsByUser=await User.find({email,accountVerified:false});
+    if(registerationAttemptsByUser.length>=3){
+        throw new ApiError('You have already registered 3 times. Please contact support.', 400);
     }
-
-    const latestAttempt = unverifiedUsers[0];
-
-    if (latestAttempt) {
-        await User.deleteMany({
-            _id: { $nin: [latestAttempt._id] },
-            email,
-            accountVerified: false
-        });
-        if (latestAttempt.verificationCodeExpire < Date.now()) {
-            latestAttempt.name = name;
-            latestAttempt.password = password;
-            const verificationCode = latestAttempt.generateVerificationCode();
-            await latestAttempt.save();
-            return await sendVerificationCode(verificationCode, email, res);
-        } else {
-            throw new ApiError('A verification code was already sent. Please wait before trying again.', 400);
-        }
-    }
-    const user = await User.create({ name, email, password });
-    const verificationCode = user.generateVerificationCode();
+    const user= await User.create({
+        name,
+        email,
+        password,
+    });
+    const verificationCode=await user.generateVerificationCode();
     await user.save();
-
-    await sendVerificationCode(verificationCode, email, res);
+    sendVerificationCode(verificationCode, email, res);
 });
 
 
