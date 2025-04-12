@@ -1,20 +1,20 @@
 import { generateVerificationOtpTemplate } from "./emailTemplates.js";
 import { sendEmail } from "./sendEmailFunc.js";
 
-export async function sendVerificationCode(verificationCode,email, res) {
-    try{
-        const message=generateVerificationOtpTemplate(verificationCode);
-        sendEmail({
-            email,
-            subject: "Library Management System Verification Code",
-            message,
-        })
-        res.status(200).json({
-            success: true,
-            message: "Verification code sent successfully",
-        });
-    }
-    catch (error) {
-        throw new ApiError("Failed to send verification code", 500);
-    }
+export async function sendVerificationCode(verificationCode, email) {
+  try {
+    if (!email) throw new Error("Email is missing");
+
+    const message = generateVerificationOtpTemplate(verificationCode);
+
+    await sendEmail({
+      email,
+      subject: "Verification Code - Library Management System Verification Code",
+      message,
+    });
+
+  } catch (error) {
+    // Re-throw the error to be caught in the controller
+    throw new Error("Verification code sending failed");
+  }
 }

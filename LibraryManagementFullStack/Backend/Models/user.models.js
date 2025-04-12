@@ -13,6 +13,8 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Email is required'],
         lowercase: true,
+        unique: true,
+
     },
     password: {
         type: String,
@@ -39,15 +41,12 @@ const userSchema = new mongoose.Schema({
         },
         bookTitle:{
             type: String,
-            required: true
         },
         borrowedDate:{
             type: Date,
-            default: Date.now
         },
         dueDate:{
             type: Date,
-            required: true
         },
     }],
     avatar:{
@@ -73,19 +72,6 @@ const userSchema = new mongoose.Schema({
     timestamps: true,
 });
 
-// before saving the user lets hash the password
-
-userSchema.pre("save", async function (next) {
-    if (this.isModified("password")) {
-      const salt = await bcrypt.genSalt(10);
-      this.password = await bcrypt.hash(this.password, salt);
-    }
-    next();
-  });
-  // when the user enters its password it will match the exisiting for the login purposes
-  userSchema.methods.comparepassword=async function(password){
-    return await bcrypt.compare(password, this.password);
-  }
  userSchema.methods.generateVerificationCode=function(){
     function generateRandomFiveDigitCode(){
         const firstDigit = Math.floor(Math.random() * 9) + 1; 
@@ -94,7 +80,7 @@ userSchema.pre("save", async function (next) {
     }
     const verificationCode=generateRandomFiveDigitCode();
     this.verificationCode=verificationCode;
-    this.verificationCodeExpire=Date.now() + 2 * 60 * 1000;
+    this.verificationCodeExpire=Date.now() + 5 * 60 * 1000;
     return verificationCode;
  } 
 

@@ -1,98 +1,179 @@
-import ApiError from '../Middlewares/Error.Middleware.js';
+import { catchAsyncErrors } from '../Middlewares/catchAsyncErrors.js';
+import ErrorHandler from '../Middlewares/error.Middleware.js';
 import {User} from '../Models/user.models.js';
-import { asyncHandler } from '../Utils/asyncHandler.js';
 import { sendToken } from '../Utils/sendToken.js';
 import { sendVerificationCode } from '../Utils/sendVerificationCode.js';
+import bcrypt from 'bcrypt';
 
-
-const registerUser = asyncHandler(async (req, res) => {
+const registerUser = catchAsyncErrors(async (req, res, next) => {
     const { name, email, password } = req.body;
-
+  
     if (!name || !email || !password) {
-        throw new ApiError('Please provide all the fields', 400);
+      return next(new ErrorHandler("Please enter all fields.", 400));
     }
-    if (password.length < 8 || password.length > 20) {
-        throw new ApiError('Password must be between 8 and 20 characters', 400);
-    }
+  
     const isRegistered = await User.findOne({ email, accountVerified: true });
     if (isRegistered) {
-        throw new ApiError('User already registered', 400);
+      return next(new ErrorHandler("User already registered.", 400));
     }
-
-    const registerationAttemptsByUser=await User.find({email,accountVerified:false});
-    if(registerationAttemptsByUser.length>=3){
-        throw new ApiError('You have already registered 3 times. Please contact support.', 400);
-    }
-    const user= await User.create({
-        name,
-        email,
-        password,
+  
+    const registrationAttemptsByUser = await User.find({
+      email,
+      accountVerified: false,
     });
-    const verificationCode=await user.generateVerificationCode();
+  
+    if (registrationAttemptsByUser.length >= 5) {
+      return next(
+        new ErrorHandler(
+          "You have exceeded the maximum number of registration attempts. Please contact support.",
+          400
+        )
+      );
+    }
+  
+    if (password.length < 8 || password.length > 16) {
+      return next(
+        new ErrorHandler("Password must be between 8 and 16 characters.", 400)
+      );
+    }
+  
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+    });
+  
+    const verificationCode = await user.generateVerificationCode();
     await user.save();
-    sendVerificationCode(verificationCode, email, res);
-});
-
-
-const verifyOtp = asyncHandler(async (req, res) => {
-    const { email, verificationCode } = req.body || {};
-
-    if (!email || !verificationCode) {
-        throw new ApiError('Email and OTP is required for verification', 400);
+  
+    try {
+      await sendVerificationCode(verificationCode,email);
+    } catch (err) {
+      console.error("❌ Failed to send verification code:", err.message);
+      return next(new ErrorHandler("Failed to send verification email.", 500));
     }
-
-    const userEntries = await User.find({
-        email,
-        accountVerified: false
+  
+    return res.status(200).json({
+      success: true,
+      message: `Verification code sent to ${email} successfully`,
+    });
+  });
+  
+const verifyOtp=catchAsyncErrors(async(req,res,next)=>{
+    const { email, verificationCode } = req.body;
+  if (!email || !verificationCode) {
+    return next(new ErrorHandler("Please enter all fields.", 400));
+  }
+  try {
+    const userAllEntries = await User.find({
+      email,
+      accountVerified: false,
     }).sort({ createdAt: -1 });
-
-    if (!userEntries || userEntries.length === 0) {
-        throw new ApiError('No such user found', 404);
+    if (!userAllEntries) {
+      return next(new ErrorHandler("No such user found.", 404));
     }
-
-    let user = userEntries[0];
-
-    if (userEntries.length > 1) {
-        await User.deleteMany({
-            _id: { $ne: user._id },
-            email,
-            accountVerified: false
-        });
+    let user;
+    if (userAllEntries.length > 1) {
+      user = userAllEntries[0];
+      await User.deleteMany({
+        email,
+        accountVerified: false,
+        _id: { $ne: user._id },
+      });
+    } else {
+      user = userAllEntries[0];
     }
-
-    if (String(user.verificationCode) !== String(verificationCode)) {
-        throw new ApiError('Invalid verification code', 400);
+    if (user.verificationCode !== Number(verificationCode)) {
+      return next(new ErrorHandler("Invalid verificationCode.", 400));
     }
-
     const currentTime = Date.now();
-    const codeExpiry = new Date(user.verificationCodeExpire).getTime();
-
-    if (currentTime > codeExpiry) {
-        throw new ApiError('Verification code expired', 400);
+    const verificationCodeExpire = new Date(
+      user.verificationCodeExpire.getTime()
+    );
+    if (currentTime > verificationCodeExpire) {
+      return next(new ErrorHandler("verificationCode expired.", 400));
     }
-
     user.accountVerified = true;
     user.verificationCode = null;
     user.verificationCodeExpire = null;
-
     await user.save({ validateModifiedOnly: true });
-
-    return sendToken(user, 200, "Account Verified", res);
+    sendToken(user, "Account verified successfully",200, res);
+  } catch (error) {
+    return next(new ErrorHandler(error.message, 500));
+  }
 });
 
-const loginUser=asyncHandler(async(req,res)=>{
-    const {email,password}=req.body;
-    if(!email || !password){
-        throw new ApiError('Please provide all the fields',400);
+const loginUser=catchAsyncErrors(async(req,res,next)=>{
+    try{
+        const {email,password}=req.body;
+        if(!email || !password){
+            return next(new ErrorHandler("Please enter all fields.",400));
+        }
+        const user=await User.findOne({email,accountVerified:true}).select("+password");
+        if(!user){
+            return next(new ErrorHandler("Invalid email or password",401));
+        }
+        const isPasswordMatched=await bcrypt.compare(password,user.password);
+        if(!isPasswordMatched){
+            return next(new ErrorHandler("Invalid email or password",401));
+        }
+        sendToken(user,"Login successfully",200,res);
     }
-    const user=await User.findOne({email}).select('+password');
+    catch(error){
+        return next(new ErrorHandler(error.message,500));
+    }
+});
+const logoutUser=catchAsyncErrors(async(req,res,next)=>{
+    try{
+        res.cookie("token","",{
+            expires:new Date(Date.now()),
+            httpOnly:true,
+        });
+        return res.status(200).json({
+            success:true,
+            message:"Logout successfully",
+        });
+    }
+    catch(error){
+        return next(new ErrorHandler(error.message,500));
+    }
+});
+const userProfile=catchAsyncErrors(async(req,res,next)=>{
+    try{
+        const user=await User.findById(req.user._id);
+        if(!user){
+            return next(new ErrorHandler("User not found",404));
+        }
+        return res.status(200).json({
+            success:true,
+            user,
+        });
+    }
+    catch(error){
+        return next(new ErrorHandler(error.message,500));
+    }
+});
+const forgotPassword=catchAsyncErrors(async(req,res,next)=>{
+    const {email}=req.body;
+    if(!email){
+        return next(new ErrorHandler("Please enter all fields.",400));
+    }
+    const user=await User.findOne({email});
     if(!user){
-        throw new ApiError('Invalid credentials',401);
+        return next(new ErrorHandler("User not found",404));
     }
-    const isMatched=await user.comparePassword(password);
-    if(!isMatched){
-        throw new ApiError('Invalid credentials',401);
+    const otp=await user.generateVerificationCode();
+    await user.save();
+    try{
+        await sendVerificationCode(otp,email);
+        return res.status(200).json({
+            success:true,
+            message:`Verification code sent to ${email} successfully`,
+        });
     }
-    sendToken(user,200,res);
-})
-export {registerUser,loginUser,verifyOtp};
+    catch(error){
+        return next(new ErrorHandler(error.message,500));
+    }
+});
+export {registerUser,verifyOtp,loginUser,logoutUser,userProfile,forgotPassword};

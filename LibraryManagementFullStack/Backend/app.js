@@ -4,8 +4,9 @@ import fileUpload from 'express-fileupload';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { connectDB } from './Database/db.js';
-import { errorMiddleware } from './Middlewares/Error.Middleware.js';
+import errorMiddleware from './Middlewares/error.Middleware.js';
 import userRoutes from './Routes/user.routes.js';
+import "colors";
 
 const app = express();
 
