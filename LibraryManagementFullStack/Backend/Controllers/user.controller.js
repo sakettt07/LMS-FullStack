@@ -176,4 +176,5 @@ const forgotPassword=catchAsyncErrors(async(req,res,next)=>{
         return next(new ErrorHandler(error.message,500));
     }
 });
-export {registerUser,verifyOtp,loginUser,logoutUser,userProfile,forgotPassword};
+const resetPassword=catchAsyncErrors(async(req,res,next)=>{});
+export {registerUser,verifyOtp,loginUser,logoutUser,userProfile,forgotPassword,resetPassword};
