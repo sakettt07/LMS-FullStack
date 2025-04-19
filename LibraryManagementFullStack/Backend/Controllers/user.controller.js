@@ -1,6 +1,7 @@
 import { catchAsyncErrors } from '../Middlewares/catchAsyncErrors.js';
 import ErrorHandler from '../Middlewares/error.Middleware.js';
 import {User} from '../Models/user.models.js';
+import { generateForgotPasswordEmailTemplate } from '../Utils/emailTemplates.js';
 import { sendToken } from '../Utils/sendToken.js';
 import { sendVerificationCode } from '../Utils/sendVerificationCode.js';
 import bcrypt from 'bcrypt';
@@ -155,26 +156,39 @@ const userProfile=catchAsyncErrors(async(req,res,next)=>{
     }
 });
 const forgotPassword=catchAsyncErrors(async(req,res,next)=>{
-    const {email}=req.body;
-    if(!email){
-        return next(new ErrorHandler("Please enter all fields.",400));
-    }
-    const user=await User.findOne({email});
-    if(!user){
-        return next(new ErrorHandler("User not found",404));
-    }
-    const otp=await user.generateVerificationCode();
-    await user.save();
-    try{
-        await sendVerificationCode(otp,email);
-        return res.status(200).json({
-            success:true,
-            message:`Verification code sent to ${email} successfully`,
-        });
-    }
-    catch(error){
-        return next(new ErrorHandler(error.message,500));
-    }
+  if(!req.body.email){
+    return next(new ErrorHandler("Please enter all fields",400));
+  }
+  const user=await User.findOne({
+    email:req.body.email,
+    accountVerified:true,
+  });
+  if(!user){
+    return next(new ErrorHandler("User not found",404));
+  }
+  const resetToken=await user.getResetPasswordToken();
+  await user.save({validateBeforeSave:false});
+  const resetPasswordUrl=`${process.env.FRONTEND_URL}/password/reset/${resetToken}`;
+  const message=generateForgotPasswordEmailTemplate(resetPasswordUrl);
+
+  try{
+    await sendEmail({
+      email:user.email,
+      subject:"Library Management System - Password Recovery",
+      message,
+    });
+    res.status(200).json({
+      success:true,
+      message:`Email sent to ${user.email} successfully`,
+    });
+  }
+  catch(error){
+    user.resetPasswordToken=undefined;
+    user.resetPasswordExpire=undefined;
+    await user.save({validateBeforeSave:false});
+    return next(new ErrorHandler(error.message,500));
+  }
+
 });
 const resetPassword=catchAsyncErrors(async(req,res,next)=>{});
 export {registerUser,verifyOtp,loginUser,logoutUser,userProfile,forgotPassword,resetPassword};

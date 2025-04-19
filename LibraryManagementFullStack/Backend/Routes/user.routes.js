@@ -9,7 +9,7 @@ router.route('/verify-otp').post(verifyOtp);
 router.route('/login').post(loginUser);
 router.route('/logout').get(isAuthenticated,logoutUser);
 router.route('/me').get(isAuthenticated,userProfile);
-router.route('/forgot-password').post(isAuthenticated,forgotPassword);
+router.route('/password/forgot').post(forgotPassword);
 router.route('/reset-password').put(isAuthenticated,resetPassword);
 
 

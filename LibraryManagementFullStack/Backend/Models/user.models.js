@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 const userSchema = new mongoose.Schema({
     name: {
@@ -86,6 +87,16 @@ const userSchema = new mongoose.Schema({
 
  userSchema.methods.generateToken=function(){
     return jwt.sign({id:this._id}, process.env.JWT_SECRET_KEY, {expiresIn:process.env.JWT_EXPIRES_IN});
+  }
+
+  userSchema.methods.getResetPasswordToken=function(){
+    const restToken=crypto.randomBytes(20).toString('hex');
+    this.resetPasswordToken=crypto
+    .createHash('sha256')
+    .update(restToken)
+    .digest('hex');
+    this.resetPasswordExpire=Date.now() + 15 * 60 * 1000;
+    return restToken;
   }
 
  export const User = mongoose.model("User", userSchema);
