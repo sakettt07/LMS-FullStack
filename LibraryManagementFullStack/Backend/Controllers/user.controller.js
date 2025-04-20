@@ -2,6 +2,7 @@ import { catchAsyncErrors } from '../Middlewares/catchAsyncErrors.js';
 import ErrorHandler from '../Middlewares/error.Middleware.js';
 import {User} from '../Models/user.models.js';
 import { generateForgotPasswordEmailTemplate } from '../Utils/emailTemplates.js';
+import { sendEmail } from '../Utils/sendEmailFunc.js';
 import { sendToken } from '../Utils/sendToken.js';
 import { sendVerificationCode } from '../Utils/sendVerificationCode.js';
 import bcrypt from 'bcrypt';
@@ -164,7 +165,7 @@ const forgotPassword=catchAsyncErrors(async(req,res,next)=>{
     accountVerified:true,
   });
   if(!user){
-    return next(new ErrorHandler("User not found",404));
+    return next(new ErrorHandler("Invalid Email",404));
   }
   const resetToken=await user.getResetPasswordToken();
   await user.save({validateBeforeSave:false});
@@ -190,5 +191,58 @@ const forgotPassword=catchAsyncErrors(async(req,res,next)=>{
   }
 
 });
-const resetPassword=catchAsyncErrors(async(req,res,next)=>{});
-export {registerUser,verifyOtp,loginUser,logoutUser,userProfile,forgotPassword,resetPassword};
+const resetPassword=catchAsyncErrors(async(req,res,next)=>{
+  const {token}=req.params;
+  const {password,confirmPassword}=req.body;
+  if(!password || !confirmPassword){
+    return next(new ErrorHandler("Please enter all fields",400));
+  }
+  const resetPasswordToken=crypto.createHash("sha256").update(token).digest("hex");
+  const user=await User.findOne({
+    resetPasswordToken,
+    resetPasswordExpire:{
+      $gt:Date.now(),
+    },
+  });
+  if(!user){
+    return next(new ErrorHandler("Invalid or expired token",400));
+  }
+  if(password.length<8 || password.length>16 || confirmPassword.length<8 || confirmPassword.length>16){
+    return next(new ErrorHandler("Password must be between 8 and 16 characters",400));
+  }
+  if(password!==confirmPassword){
+    return next(new ErrorHandler("Password does not match",400));
+  }
+  const hashedPassword=await bcrypt.hash(password,10);
+  user.password=hashedPassword;
+  user.resetPasswordToken=undefined;
+  user.resetPasswordExpire=undefined;
+  await user.save();
+  sendToken(user,"Password updated successfully",200,res);
+});
+const updatePassword=catchAsyncErrors(async(req,res,next)=>{
+  const user=await User.findById(req.user._id).select("+password");
+  const {oldPassword,newPassword,confirmNewPassword}=req.body;
+  if(!oldPassword || !newPassword || !confirmNewPassword){
+    return next(new ErrorHandler("Please enter all fields",400));
+  }
+  if(newPassword.length<8 || newPassword.length>16 || confirmNewPassword.length<8 || confirmNewPassword.length>16){
+    return next(new ErrorHandler("Password must be between 8 and 16 characters",400));
+  }
+  if(newPassword!==confirmNewPassword){
+    return next(new ErrorHandler("Password does not match",400));
+  }
+  const isPasswordMatched=await bcrypt.compare(oldPassword,user.password);
+  if(!isPasswordMatched){
+    return next(new ErrorHandler("Old password is incorrect",400));
+  }
+  const hashedPassword=await bcrypt.hash(newPassword,10);
+  user.password=hashedPassword;
+  await user.save();
+  return res.status(200).json({
+    success:true,
+    message:"Password updated successfully",
+  });
+
+});
+export {registerUser,verifyOtp,loginUser,logoutUser,userProfile,forgotPassword,resetPassword,updatePassword};
