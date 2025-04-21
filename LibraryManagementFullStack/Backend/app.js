@@ -6,6 +6,7 @@ import cors from 'cors';
 import { connectDB } from './Database/db.js';
 import errorMiddleware from './Middlewares/error.Middleware.js';
 import userRoutes from './Routes/user.routes.js';
+import bookRoutes from './Routes/book.routes.js';
 import "colors";
 
 const app = express();
@@ -29,6 +30,7 @@ app.use(fileUpload({
 }))
  //Define all the routes.
  app.use("/api/v1/user",userRoutes);
+ app.use("/api/v1/book",bookRoutes);
 
 connectDB();
 app.use(errorMiddleware);
