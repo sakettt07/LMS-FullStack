@@ -3,8 +3,17 @@ import ErrorHandler from '../Middlewares/error.Middleware.js';
 import { Borrow } from '../Models/borrow.models.js';
 import { Book } from '../Models/book.models.js';
 import { User } from '../Models/user.models.js';
+import { calculateFine } from '../Utils/fineCalculator.js';
 
 const borrowedBooks = catchAsyncErrors(async (req, res, next) => {
+    const {borrowedBooks} = req.user;
+    if(borrowedBooks.length===0){
+        return next(new ErrorHandler("No borrowed books", 404));
+    }
+    res.status(200).json({
+        success: true,
+        borrowedBooks,
+    });
 });
 const recordBorrowedBooks=catchAsyncErrors(async (req, res, next) => {
     //TODO: record borrowed books for admin
@@ -21,7 +30,7 @@ const recordBorrowedBooks=catchAsyncErrors(async (req, res, next) => {
     if(!book){
         return next(new ErrorHandler("Book not found", 404));
     }
-    const user=await User.findOne({email});
+    const user=await User.findOne({email,accountVerified: true});
     if(!user){
         return next(new ErrorHandler("User not found", 404));
     }
@@ -62,10 +71,57 @@ const recordBorrowedBooks=catchAsyncErrors(async (req, res, next) => {
 
 });
 const getBorrowedBooksForAdmin=catchAsyncErrors(async (req, res, next) => {
-    
+    const borrowedBooks=await Borrow.find();
+    if(borrowedBooks.length===0){
+        return next(new ErrorHandler("No borrowed books", 404));
+    }
+    res.status(200).json({
+        success: true,
+        borrowedBooks,
+    });
 });
 
-const returnBorrowedBook=catchAsyncErrors(async (req, res, next) => {});
+const returnBorrowedBook=catchAsyncErrors(async (req, res, next) => {
+    // TODO: return borrowed book
+
+    const {bookId} = req.params;
+    const {email} = req.body;
+    const book=await Book.findById(bookId);
+    if(!book){
+        return next(new ErrorHandler("Book not found", 404));
+    }
+    const user=await User.findOne({email,accountVerified: true});
+    if(!user){
+        return next(new ErrorHandler("User not found", 404));
+    }
+    const borrowedBook = user.borrowedBooks.find((b) => b.bookId.toString() === bookId.toString() && b.returned === false);
+    if(!borrowedBook){
+        return next(new ErrorHandler("Book not borrowed", 404));
+    }
+    borrowedBook.returned = true;
+    await user.save();
+    book.quantity += 1;
+    book.availability = book.quantity > 0;
+    await book.save();
+
+    const borrow=await Borrow.findOne({
+        book:bookId,
+        "user.email": email,
+        returnDate: null,
+    });
+    if(!borrow){
+        return next(new ErrorHandler("Borrow record not found", 404));
+    }
+    borrow.returnDate = new Date();
+    const fine=calculateFine(borrow.dueDate);
+    borrow.fine = fine;
+    await borrow.save();
+    res.status(200).json({
+        success: true,
+        message: fine!==0?`Book returned successfully the total charges including the fine is ${fine+book.price}`:`
+        Book returned successfully the total charges is ${book.price}`,
+    });
+});
 
 
 

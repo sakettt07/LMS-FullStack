@@ -10,7 +10,7 @@ router.route('/login').post(loginUser);
 router.route('/logout').get(isAuthenticated,logoutUser);
 router.route('/me').get(isAuthenticated,userProfile);
 router.route('/password/forgot').post(forgotPassword);
-router.route('/password/reset').put(resetPassword);
+router.route('/password/reset/:token').put(resetPassword);
 router.route('/password/update').put(isAuthenticated,updatePassword);
 
 

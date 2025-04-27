@@ -6,6 +6,7 @@ import { sendEmail } from '../Utils/sendEmailFunc.js';
 import { sendToken } from '../Utils/sendToken.js';
 import { sendVerificationCode } from '../Utils/sendVerificationCode.js';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
 const registerUser = catchAsyncErrors(async (req, res, next) => {
     const { name, email, password } = req.body;
@@ -178,7 +179,7 @@ const forgotPassword=catchAsyncErrors(async(req,res,next)=>{
       subject:"Library Management System - Password Recovery",
       message,
     });
-    res.status(200).json({
+    return res.status(200).json({
       success:true,
       message:`Email sent to ${user.email} successfully`,
     });
@@ -245,4 +246,14 @@ const updatePassword=catchAsyncErrors(async(req,res,next)=>{
   });
 
 });
-export {registerUser,verifyOtp,loginUser,logoutUser,userProfile,forgotPassword,resetPassword,updatePassword};
+const getAllUsers=catchAsyncErrors(async(req,res,next)=>{
+  const users=await User.find({accountVerified:true});
+  if(!users){
+    return next(new ErrorHandler("No users found",404));
+  }
+  return res.status(200).json({
+    success:true,
+    users,
+  });
+});
+export {registerUser,verifyOtp,loginUser,logoutUser,userProfile,forgotPassword,resetPassword,updatePassword,getAllUsers};
