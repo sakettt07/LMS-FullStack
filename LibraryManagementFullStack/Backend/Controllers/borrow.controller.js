@@ -30,7 +30,7 @@ const recordBorrowedBooks=catchAsyncErrors(async (req, res, next) => {
     if(!book){
         return next(new ErrorHandler("Book not found", 404));
     }
-    const user=await User.findOne({email,accountVerified: true});
+    const user=await User.findOne({email,accountVerified: true,role: "User"});
     if(!user){
         return next(new ErrorHandler("User not found", 404));
     }
@@ -94,7 +94,7 @@ const returnBorrowedBook=catchAsyncErrors(async (req, res, next) => {
     if(!user){
         return next(new ErrorHandler("User not found", 404));
     }
-    const borrowedBook = user.borrowedBooks.find((b) => b.bookId.toString() === bookId.toString() && b.returned === false);
+    const borrowedBook = user.borrowedBooks.find((b) => b.bookId.toString() === bookId && b.returned === false);
     if(!borrowedBook){
         return next(new ErrorHandler("Book not borrowed", 404));
     }
@@ -105,7 +105,7 @@ const returnBorrowedBook=catchAsyncErrors(async (req, res, next) => {
     await book.save();
 
     const borrow=await Borrow.findOne({
-        book:bookId,
+        "book.id":bookId,
         "user.email": email,
         returnDate: null,
     });
@@ -118,8 +118,7 @@ const returnBorrowedBook=catchAsyncErrors(async (req, res, next) => {
     await borrow.save();
     res.status(200).json({
         success: true,
-        message: fine!==0?`Book returned successfully the total charges including the fine is ${fine+book.price}`:`
-        Book returned successfully the total charges is ${book.price}`,
+        message: fine!==0?`Book returned successfully the total charges including the fine is ₹ ${fine+book.price}`:`Book returned successfully the total charges is ₹ ${book.price}`,
     });
 });
 

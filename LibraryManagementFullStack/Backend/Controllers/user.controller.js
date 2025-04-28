@@ -1,70 +1,92 @@
 import { catchAsyncErrors } from '../Middlewares/catchAsyncErrors.js';
 import ErrorHandler from '../Middlewares/error.Middleware.js';
-import {User} from '../Models/user.models.js';
+import { User } from '../Models/user.models.js';
 import { generateForgotPasswordEmailTemplate } from '../Utils/emailTemplates.js';
 import { sendEmail } from '../Utils/sendEmailFunc.js';
 import { sendToken } from '../Utils/sendToken.js';
 import { sendVerificationCode } from '../Utils/sendVerificationCode.js';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import { v2 as cloudinary } from 'cloudinary';
 
 const registerUser = catchAsyncErrors(async (req, res, next) => {
-    const { name, email, password } = req.body;
-  
-    if (!name || !email || !password) {
-      return next(new ErrorHandler("Please enter all fields.", 400));
-    }
-  
-    const isRegistered = await User.findOne({ email, accountVerified: true });
-    if (isRegistered) {
-      return next(new ErrorHandler("User already registered.", 400));
-    }
-  
-    const registrationAttemptsByUser = await User.find({
-      email,
-      accountVerified: false,
-    });
-  
-    if (registrationAttemptsByUser.length >= 5) {
-      return next(
-        new ErrorHandler(
-          "You have exceeded the maximum number of registration attempts. Please contact support.",
-          400
-        )
-      );
-    }
-  
-    if (password.length < 8 || password.length > 16) {
-      return next(
-        new ErrorHandler("Password must be between 8 and 16 characters.", 400)
-      );
-    }
-  
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-    });
-  
-    const verificationCode = await user.generateVerificationCode();
-    await user.save();
-  
-    try {
-      await sendVerificationCode(verificationCode,email);
-    } catch (err) {
-      console.error("❌ Failed to send verification code:", err.message);
-      return next(new ErrorHandler("Failed to send verification email.", 500));
-    }
-  
-    return res.status(200).json({
-      success: true,
-      message: `Verification code sent to ${email} successfully`,
-    });
+
+  if (!req.files || Object.keys(req.files).length === 0) {
+    return next(new ErrorHandler("Avatar Image Required", 400));
+  };
+  const { avatar } = req.files;
+  const allowedFormats = ['image/jpeg', 'image/png', 'image/jpg'];
+  if (!allowedFormats.includes(avatar.mimetype)) {
+    return next(new ErrorHandler("File format not supported", 400));
+  }
+  const { name, email, password } = req.body;
+
+  if (!name || !email || !password) {
+    return next(new ErrorHandler("Please enter all fields.", 400));
+  }
+
+  const isRegistered = await User.findOne({ email, accountVerified: true });
+  if (isRegistered) {
+    return next(new ErrorHandler("User already registered.", 400));
+  }
+
+  const registrationAttemptsByUser = await User.find({
+    email,
+    accountVerified: false,
   });
-  
-const verifyOtp=catchAsyncErrors(async(req,res,next)=>{
-    const { email, verificationCode } = req.body;
+
+  if (registrationAttemptsByUser.length >= 5) {
+    return next(
+      new ErrorHandler(
+        "You have exceeded the maximum number of registration attempts. Please contact support.",
+        400
+      )
+    );
+  }
+
+  if (password.length < 8 || password.length > 16) {
+    return next(
+      new ErrorHandler("Password must be between 8 and 16 characters.", 400)
+    );
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const cloudinaryResponse = await cloudinary.uploader.upload(avatar.tempFilePath, {
+    folder: 'LibraryManagement/Users',
+  });
+  if (!cloudinaryResponse || cloudinaryResponse.error) {
+    return next(new ErrorHandler(`Image upload failed || ${cloudinaryResponse.error}`, 500));
+  }
+
+  const user = await User.create({
+    name,
+    email,
+    password: hashedPassword,
+    avatar: {
+      public_id: cloudinaryResponse.public_id,
+      url: cloudinaryResponse.secure_url,
+    }
+  });
+
+  const verificationCode = await user.generateVerificationCode();
+  await user.save();
+
+  try {
+    await sendVerificationCode(verificationCode, email);
+  } catch (err) {
+    console.error("Failed to send verification code:", err.message);
+    return next(new ErrorHandler("Failed to send verification email.", 500));
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: `Verification code sent to ${email} successfully`,
+  });
+});
+
+const verifyOtp = catchAsyncErrors(async (req, res, next) => {
+  const { email, verificationCode } = req.body;
   if (!email || !verificationCode) {
     return next(new ErrorHandler("Please enter all fields.", 400));
   }
@@ -101,159 +123,209 @@ const verifyOtp=catchAsyncErrors(async(req,res,next)=>{
     user.verificationCode = null;
     user.verificationCodeExpire = null;
     await user.save({ validateModifiedOnly: true });
-    sendToken(user, "Account verified successfully",200, res);
+    sendToken(user, "Account verified successfully", 200, res);
   } catch (error) {
     return next(new ErrorHandler(error.message, 500));
   }
 });
 
-const loginUser=catchAsyncErrors(async(req,res,next)=>{
-    try{
-        const {email,password}=req.body;
-        if(!email || !password){
-            return next(new ErrorHandler("Please enter all fields.",400));
-        }
-        const user=await User.findOne({email,accountVerified:true}).select("+password");
-        if(!user){
-            return next(new ErrorHandler("Invalid email or password",401));
-        }
-        const isPasswordMatched=await bcrypt.compare(password,user.password);
-        if(!isPasswordMatched){
-            return next(new ErrorHandler("Invalid email or password",401));
-        }
-        sendToken(user,"Login successfully",200,res);
+const loginUser = catchAsyncErrors(async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return next(new ErrorHandler("Please enter all fields.", 400));
     }
-    catch(error){
-        return next(new ErrorHandler(error.message,500));
+    const user = await User.findOne({ email, accountVerified: true }).select("+password");
+    if (!user) {
+      return next(new ErrorHandler("Invalid email or password", 401));
     }
-});
-const logoutUser=catchAsyncErrors(async(req,res,next)=>{
-    try{
-        res.cookie("token","",{
-            expires:new Date(Date.now()),
-            httpOnly:true,
-        });
-        return res.status(200).json({
-            success:true,
-            message:"Logout successfully",
-        });
+    const isPasswordMatched = await bcrypt.compare(password, user.password);
+    if (!isPasswordMatched) {
+      return next(new ErrorHandler("Invalid email or password", 401));
     }
-    catch(error){
-        return next(new ErrorHandler(error.message,500));
-    }
-});
-const userProfile=catchAsyncErrors(async(req,res,next)=>{
-    try{
-        const user=await User.findById(req.user._id);
-        if(!user){
-            return next(new ErrorHandler("User not found",404));
-        }
-        return res.status(200).json({
-            success:true,
-            user,
-        });
-    }
-    catch(error){
-        return next(new ErrorHandler(error.message,500));
-    }
-});
-const forgotPassword=catchAsyncErrors(async(req,res,next)=>{
-  if(!req.body.email){
-    return next(new ErrorHandler("Please enter all fields",400));
+    sendToken(user, "Login successfully", 200, res);
   }
-  const user=await User.findOne({
-    email:req.body.email,
-    accountVerified:true,
+  catch (error) {
+    return next(new ErrorHandler(error.message, 500));
+  }
+});
+const logoutUser = catchAsyncErrors(async (req, res, next) => {
+  try {
+    res.cookie("token", "", {
+      expires: new Date(Date.now()),
+      httpOnly: true,
+    });
+    return res.status(200).json({
+      success: true,
+      message: "Logout successfully",
+    });
+  }
+  catch (error) {
+    return next(new ErrorHandler(error.message, 500));
+  }
+});
+const userProfile = catchAsyncErrors(async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return next(new ErrorHandler("User not found", 404));
+    }
+    return res.status(200).json({
+      success: true,
+      user,
+    });
+  }
+  catch (error) {
+    return next(new ErrorHandler(error.message, 500));
+  }
+});
+const forgotPassword = catchAsyncErrors(async (req, res, next) => {
+  if (!req.body.email) {
+    return next(new ErrorHandler("Please enter all fields", 400));
+  }
+  const user = await User.findOne({
+    email: req.body.email,
+    accountVerified: true,
   });
-  if(!user){
-    return next(new ErrorHandler("Invalid Email",404));
+  if (!user) {
+    return next(new ErrorHandler("Invalid Email", 404));
   }
-  const resetToken=await user.getResetPasswordToken();
-  await user.save({validateBeforeSave:false});
-  const resetPasswordUrl=`${process.env.FRONTEND_URL}/password/reset/${resetToken}`;
-  const message=generateForgotPasswordEmailTemplate(resetPasswordUrl);
+  const resetToken = await user.getResetPasswordToken();
+  await user.save({ validateBeforeSave: false });
+  const resetPasswordUrl = `${process.env.FRONTEND_URL}/password/reset/${resetToken}`;
+  const message = generateForgotPasswordEmailTemplate(resetPasswordUrl);
 
-  try{
+  try {
     await sendEmail({
-      email:user.email,
-      subject:"Library Management System - Password Recovery",
+      email: user.email,
+      subject: "Library Management System - Password Recovery",
       message,
     });
     return res.status(200).json({
-      success:true,
-      message:`Email sent to ${user.email} successfully`,
+      success: true,
+      message: `Email sent to ${user.email} successfully`,
     });
   }
-  catch(error){
-    user.resetPasswordToken=undefined;
-    user.resetPasswordExpire=undefined;
-    await user.save({validateBeforeSave:false});
-    return next(new ErrorHandler(error.message,500));
+  catch (error) {
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save({ validateBeforeSave: false });
+    return next(new ErrorHandler(error.message, 500));
   }
 
 });
-const resetPassword=catchAsyncErrors(async(req,res,next)=>{
-  const {token}=req.params;
-  const {password,confirmPassword}=req.body;
-  if(!password || !confirmPassword){
-    return next(new ErrorHandler("Please enter all fields",400));
+const resetPassword = catchAsyncErrors(async (req, res, next) => {
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+  if (!password || !confirmPassword) {
+    return next(new ErrorHandler("Please enter all fields", 400));
   }
-  const resetPasswordToken=crypto.createHash("sha256").update(token).digest("hex");
-  const user=await User.findOne({
+  const resetPasswordToken = crypto.createHash("sha256").update(token).digest("hex");
+  const user = await User.findOne({
     resetPasswordToken,
-    resetPasswordExpire:{
-      $gt:Date.now(),
+    resetPasswordExpire: {
+      $gt: Date.now(),
     },
   });
-  if(!user){
-    return next(new ErrorHandler("Invalid or expired token",400));
+  if (!user) {
+    return next(new ErrorHandler("Invalid or expired token", 400));
   }
-  if(password.length<8 || password.length>16 || confirmPassword.length<8 || confirmPassword.length>16){
-    return next(new ErrorHandler("Password must be between 8 and 16 characters",400));
+  if (password.length < 8 || password.length > 16 || confirmPassword.length < 8 || confirmPassword.length > 16) {
+    return next(new ErrorHandler("Password must be between 8 and 16 characters", 400));
   }
-  if(password!==confirmPassword){
-    return next(new ErrorHandler("Password does not match",400));
+  if (password !== confirmPassword) {
+    return next(new ErrorHandler("Password does not match", 400));
   }
-  const hashedPassword=await bcrypt.hash(password,10);
-  user.password=hashedPassword;
-  user.resetPasswordToken=undefined;
-  user.resetPasswordExpire=undefined;
+  const hashedPassword = await bcrypt.hash(password, 10);
+  user.password = hashedPassword;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpire = undefined;
   await user.save();
-  sendToken(user,"Password updated successfully",200,res);
+  sendToken(user, "Password updated successfully", 200, res);
 });
-const updatePassword=catchAsyncErrors(async(req,res,next)=>{
-  const user=await User.findById(req.user._id).select("+password");
-  const {oldPassword,newPassword,confirmNewPassword}=req.body;
-  if(!oldPassword || !newPassword || !confirmNewPassword){
-    return next(new ErrorHandler("Please enter all fields",400));
+const updatePassword = catchAsyncErrors(async (req, res, next) => {
+  const user = await User.findById(req.user._id).select("+password");
+  const { oldPassword, newPassword, confirmNewPassword } = req.body;
+  if (!oldPassword || !newPassword || !confirmNewPassword) {
+    return next(new ErrorHandler("Please enter all fields", 400));
   }
-  if(newPassword.length<8 || newPassword.length>16 || confirmNewPassword.length<8 || confirmNewPassword.length>16){
-    return next(new ErrorHandler("Password must be between 8 and 16 characters",400));
+  if (newPassword.length < 8 || newPassword.length > 16 || confirmNewPassword.length < 8 || confirmNewPassword.length > 16) {
+    return next(new ErrorHandler("Password must be between 8 and 16 characters", 400));
   }
-  if(newPassword!==confirmNewPassword){
-    return next(new ErrorHandler("Password does not match",400));
+  if (newPassword !== confirmNewPassword) {
+    return next(new ErrorHandler("Password does not match", 400));
   }
-  const isPasswordMatched=await bcrypt.compare(oldPassword,user.password);
-  if(!isPasswordMatched){
-    return next(new ErrorHandler("Old password is incorrect",400));
+  const isPasswordMatched = await bcrypt.compare(oldPassword, user.password);
+  if (!isPasswordMatched) {
+    return next(new ErrorHandler("Old password is incorrect", 400));
   }
-  const hashedPassword=await bcrypt.hash(newPassword,10);
-  user.password=hashedPassword;
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  user.password = hashedPassword;
   await user.save();
   return res.status(200).json({
-    success:true,
-    message:"Password updated successfully",
+    success: true,
+    message: "Password updated successfully",
   });
 
 });
-const getAllUsers=catchAsyncErrors(async(req,res,next)=>{
-  const users=await User.find({accountVerified:true});
-  if(!users){
-    return next(new ErrorHandler("No users found",404));
+const getAllUsers = catchAsyncErrors(async (req, res, next) => {
+  const users = await User.find({ accountVerified: true }).select("-borrowedBooks -verificationCode -verificationCodeExpire -resetPasswordToken -resetPasswordExpire -password -createdAt -updatedAt -__v");
+  if (!users) {
+    return next(new ErrorHandler("No users found", 404));
   }
   return res.status(200).json({
-    success:true,
+    success: true,
     users,
   });
 });
-export {registerUser,verifyOtp,loginUser,logoutUser,userProfile,forgotPassword,resetPassword,updatePassword,getAllUsers};
+
+const registerAsAdmin = catchAsyncErrors(async (req, res, next) => {
+  if (!req.files || Object.keys(req.files).length === 0) {
+    return next(new ErrorHandler("Avatar Image Required", 400));
+  }
+  const { avatar } = req.files;
+  const allowedFormats = ['image/jpeg', 'image/png', 'image/jpg'];
+  if (!allowedFormats.includes(avatar.mimetype)) {
+    return next(new ErrorHandler("File format not supported", 400));
+  }
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) {
+    return next(new ErrorHandler("Please enter all fields", 400));
+  };
+  const isRegistered = await User.findOne({ email, accountVerified: true });
+  if (isRegistered) {
+    return next(new ErrorHandler("User already registered", 400));
+  }
+
+  if (password.length < 8 || password.length > 16) {
+    return next(
+      new ErrorHandler("Password must be between 8 and 16 characters", 400)
+    );
+  }
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const cloudinaryResponse = await cloudinary.uploader.upload(avatar.tempFilePath, {
+    folder: 'LibraryManagement/Users',
+  });
+  if (!cloudinaryResponse || cloudinaryResponse.error) {
+    return next(new ErrorHandler(`Image upload failed || ${cloudinaryResponse.error}`, 500));
+  }
+  const admin = await User.create({
+    name,
+    email,
+    password: hashedPassword,
+    role: "Admin",
+    avatar: {
+      public_id: cloudinaryResponse.public_id,
+      url: cloudinaryResponse.secure_url,
+    },
+  });
+
+  res.status(201).json({
+    success: true,
+    message: "Admin registered successfully",
+    admin,
+  });
+
+
+});
+export { registerUser, verifyOtp, loginUser, logoutUser, userProfile, forgotPassword, resetPassword, updatePassword, getAllUsers, registerAsAdmin };
