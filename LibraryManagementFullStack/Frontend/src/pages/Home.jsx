@@ -1,8 +1,14 @@
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { GiHamburgerMenu } from "react-icons/gi";
 import SideBar from "../layout/SideBar.jsx";
+import AdminDashBoard from "../components/AdminDashBoard.jsx";
+import UserDashBoard from "../components/UserDashBoard.jsx";
+import Catalog from "../components/Catalog.jsx";
+import Users from "../components/Users.jsx";
+import Books from "../components/Books.jsx";
+import BorrowedBooks from "../components/BorrowedBooks.jsx";
 
 const Home = () => {
   const [isSideBarOpen, setIsSidebarOpen] = useState(false);
@@ -22,10 +28,45 @@ const Home = () => {
           />
         </div>
         <SideBar
-          isOpen={isSideBarOpen}
+          isSideBarOpen={isSideBarOpen}
           setIsSidebarOpen={setIsSidebarOpen}
           setSelectedComponent={setSelectedComponent}
         />
+        {(() => {
+          switch (selectedCompontent) {
+            case "Dashboard":
+              return user?.role === "User" ? (
+                <UserDashBoard />
+              ) : (
+                <AdminDashBoard />
+              );
+
+            case "Books":
+              return <Books />;
+
+            case "Catalog":
+              if (user?.role === "Admin") {
+                return <Catalog />;
+              }
+              break;
+
+            case "Users":
+              if (user?.role === "Admin") {
+                return <Users />;
+              }
+              break;
+
+            case "Borrowed Books":
+              return <BorrowedBooks />;
+
+            default:
+              return user?.role === "User" ? (
+                <UserDashBoard />
+              ) : (
+                <AdminDashBoard />
+              );
+          }
+        })()}
       </div>
     </>
   );
