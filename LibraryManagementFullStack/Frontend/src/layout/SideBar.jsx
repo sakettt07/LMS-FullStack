@@ -41,17 +41,17 @@ const SideBar = ({ isSidebarOpen, setIsSidebarOpen, setSelectedComponent }) => {
         <button className="w-full py-2 font-medium bg-transparent rounded-md hover:cur
         sor-pointer flex items-center space-x-2" onClick={() => setSelectedComponent("Dashboard")}>
           <img src="" alt="icon" />
-          <span>Dashboard</span>
+          <span>Books</span>
         </button>
         <button className="w-full py-2 font-medium bg-transparent rounded-md hover:cur
         sor-pointer flex items-center space-x-2" onClick={() => setSelectedComponent("Dashboard")}>
           <img src="" alt="icon" />
-          <span>Dashboard</span>
+          <span>Catalog</span>
         </button>
         <button className="w-full py-2 font-medium bg-transparent rounded-md hover:cur
         sor-pointer flex items-center space-x-2" onClick={() => setSelectedComponent("Dashboard")}>
           <img src="" alt="icon" />
-          <span>Dashboard</span>
+          <span>Users</span>
         </button>
       </nav>
     </aside>
