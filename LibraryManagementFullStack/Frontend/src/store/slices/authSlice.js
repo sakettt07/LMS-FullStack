@@ -190,7 +190,7 @@ export const login=(data)=>async(dispatch)=>{
 }
 export const logout=()=>async(dispatch)=>{
     dispatch(authSlice.actions.logoutRequest());
-    await axios.get('/api/v1/auth/logout',{
+    await axios.get('http://localhost:3000/api/v1/user/logout',{
         withCredentials:true,
     })
     .then((res)=>{

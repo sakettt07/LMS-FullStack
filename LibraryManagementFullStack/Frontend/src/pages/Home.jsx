@@ -15,9 +15,9 @@ const Home = () => {
   const [selectedCompontent, setSelectedComponent] = useState("");
 
   const { user, isAuthenticated } = useSelector((state) => state.auth);
-  // if (!isAuthenticated) {
-  //   return <Navigate to={"/login"} />;
-  // }
+  if (!isAuthenticated) {
+    return <Navigate to={"/login"} />;
+  }
   return (
     <>
       <div className="relative md:pl-64 flex min-h-screen bg-yellow-800">
@@ -31,6 +31,7 @@ const Home = () => {
           isSideBarOpen={isSideBarOpen}
           setIsSidebarOpen={setIsSidebarOpen}
           setSelectedComponent={setSelectedComponent}
+          selectedComponent={selectedCompontent}
         />
         {(() => {
           switch (selectedCompontent) {
