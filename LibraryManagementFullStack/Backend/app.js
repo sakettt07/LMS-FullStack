@@ -4,7 +4,6 @@ import fileUpload from 'express-fileupload';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { connectDB } from './Database/db.js';
-import errorMiddleware from './Middlewares/error.Middleware.js';
 import userRoutes from './Routes/user.routes.js';
 import bookRoutes from './Routes/book.routes.js';
 import borrowRoutes from './Routes/borrow.routes.js';
@@ -35,7 +34,6 @@ app.use(fileUpload({
  app.use("/api/v1/borrow",borrowRoutes);
 
 connectDB();
-app.use(errorMiddleware);
 
 
  export{app};

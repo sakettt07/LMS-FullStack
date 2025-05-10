@@ -4,13 +4,14 @@ import { borrowedBooks, getBorrowedBooksForAdmin, recordBorrowedBooks, returnBor
 
 const router = express.Router();
 
-router.route('/borrowed-books').get(isAuthenticated, borrowedBooks);
+router.use(isAuthenticated);
+router.route('/borrowed-books').get(borrowedBooks);
 
-router.route('/record-borrowed-books/:id').post(isAuthenticated,recordBorrowedBooks);
+router.route('/record-borrowed-books/:id').post(recordBorrowedBooks);
 
-router.route('/get-borrowed-books-for-admin').get(isAuthenticated,authorizeRoles("Admin"),getBorrowedBooksForAdmin);
+router.route('/get-borrowed-books-for-admin').get(authorizeRoles("Admin"),getBorrowedBooksForAdmin);
 
-router.route('/return-borrowed-book/:bookId').put(isAuthenticated,returnBorrowedBook);
+router.route('/return-borrowed-book/:bookId').put(returnBorrowedBook);
 
 
 export default router;

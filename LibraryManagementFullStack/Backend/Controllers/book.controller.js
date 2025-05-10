@@ -1,31 +1,32 @@
-import { catchAsyncErrors } from '../Middlewares/catchAsyncErrors.js';
-import ErrorHandler from '../Middlewares/error.Middleware.js';
+import {ApiError} from  "../Utils/Api.Error.js";
+import {ApiResponse} from "..//Utils/ApiResponse.js";
+import {asyncHandler} from "../Utils/asyncHandler.js";
 import { Book } from '../Models/book.models.js';
 import {v2 as cloudinary} from 'cloudinary';
 
-const addBook = catchAsyncErrors(async (req, res, next) => {
+const addBook = asyncHandler(async (req, res, next) => {
 
     if(!req.files || Object.keys(req.files).length === 0){
-        return next(new ErrorHandler("Book Cover Image Required",400));
+        throw new ApiError(400,"Please upload a book cover image");
     }
     const {bookCoverImage} = req.files;
     const allowedFormats= ['image/jpeg', 'image/png', 'image/jpg'];
     if(!allowedFormats.includes(bookCoverImage.mimetype)){
-        return next(new ErrorHandler("Please upload a valid image",400));
+        throw new ApiError(400,"Please upload a valid image file");
     }
     const {title,author,description,price,quantity,category} = req.body;
     if(!title || !author || !description || !price || !quantity || !category){
-        return next(new ErrorHandler("Please enter all fields",400));
+        throw new ApiError(400,"Please fill all the fields");
     }
 
     if(price <= 0 || quantity <= 0){
-        return next(new ErrorHandler("Price and Quantity should be greater than 0",400));
+        throw new ApiError(400,"Price and quantity should be greater than 0");
     }
     const cloudinaryResponse=await cloudinary.uploader.upload(bookCoverImage.tempFilePath, {
         folder: 'LibraryManagement/Books',
     });
     if(!cloudinaryResponse||cloudinaryResponse.error){
-        return next(new ErrorHandler(`Image upload failed || ${cloudinaryResponse.error}`,500));
+        throw new ApiError(500,"Error uploading image to cloudinary");
     }
     const book = await Book.create({
         title,
@@ -39,50 +40,39 @@ const addBook = catchAsyncErrors(async (req, res, next) => {
             url: cloudinaryResponse.secure_url,
         },
     });
-    res.status(201).json({
-        success: true,
-        message: "Book added successfully",
-        book,
-    });
+    if(!book){
+        await cloudinary.uploader.destroy(cloudinaryResponse.public_id);
+        throw new ApiError(500,"Error creating book");
+    }
+    return res.status(201).json(new ApiResponse(200,book,"Book created successfully"));
 });
 
-const getAllBooks = catchAsyncErrors(async (req, res, next) => {
+const getAllBooks = asyncHandler(async (req, res, next) => {
     const books = await Book.find();
     if(!books || books.length === 0){
-        return next(new ErrorHandler("No books found",404));
+        throw new ApiError(404,"No books found");
     }
-    res.status(200).json({
-        success: true,
-        message: "Books fetched successfully",
-        books,
-    });
+    return res.status(200).json(new ApiResponse(200,books,"Books fetched successfully"));
 });
 
-const getBookById = catchAsyncErrors(async (req, res, next) => {
+const getBookById = asyncHandler(async (req, res, next) => {
     const {id} = req.params;
     const book = await Book.findById(id);
     if(!book){
-        return next(new ErrorHandler("Book not found",404));
+        throw new ApiError(404,"Book not found");
     }
-    res.status(200).json({
-        success: true,
-        message: "Book fetched successfully",
-        book,
-    });
+    return res.status(200).json(new ApiResponse(200,book,"Book fetched successfully"));
 });
 
-const deleteBook = catchAsyncErrors(async (req, res, next) => {
+const deleteBook = asyncHandler(async (req, res, next) => {
     const {id} = req.params;
     const book = await Book.findById(id);
     if(!book){
-        return next(new ErrorHandler("Book not found",404));
+        throw new ApiError(404,"Book not found");
     }
     await cloudinary.uploader.destroy(book.bookCoverImage.public_id);
     await book.deleteOne();
-    res.status(200).json({
-        success: true,
-        message: "Book deleted successfully",
-    });
+    return res.status(200).json(new ApiResponse(200,book,"Book deleted successfully"));
 });
 
 export {addBook, getAllBooks, getBookById, deleteBook};

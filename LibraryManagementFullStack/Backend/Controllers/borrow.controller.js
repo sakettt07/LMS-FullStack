@@ -1,21 +1,19 @@
-import { catchAsyncErrors } from '../Middlewares/catchAsyncErrors.js';
-import ErrorHandler from '../Middlewares/error.Middleware.js';
+import {ApiError} from "../Utils/Api.Error.js";
+import {asyncHandler} from "../Utils/asyncHandler.js";
+import {ApiResponse} from "../Utils/ApiResponse.js";
 import { Borrow } from '../Models/borrow.models.js';
 import { Book } from '../Models/book.models.js';
 import { User } from '../Models/user.models.js';
 import { calculateFine } from '../Utils/fineCalculator.js';
 
-const borrowedBooks = catchAsyncErrors(async (req, res, next) => {
+const borrowedBooks = asyncHandler(async (req, res, next) => {
     const {borrowedBooks} = req.user;
     if(borrowedBooks.length===0){
-        return next(new ErrorHandler("No borrowed books", 404));
+        throw new ApiError(404,"No borrowed books found");
     }
-    res.status(200).json({
-        success: true,
-        borrowedBooks,
-    });
+    return res.status(200).json(new ApiResponse(200,borrowedBooks,"Borrowed books fetched successfully"));
 });
-const recordBorrowedBooks=catchAsyncErrors(async (req, res, next) => {
+const recordBorrowedBooks=asyncHandler(async (req, res, next) => {
     //TODO: record borrowed books for admin
     // fetch the book which user has borrowed
     // fetch the user who borrowed the book
@@ -28,18 +26,18 @@ const recordBorrowedBooks=catchAsyncErrors(async (req, res, next) => {
 
     const book=await Book.findById(id);
     if(!book){
-        return next(new ErrorHandler("Book not found", 404));
+        throw new ApiError(404,"Book not found");
     }
     const user=await User.findOne({email,accountVerified: true,role: "User"});
     if(!user){
-        return next(new ErrorHandler("User not found", 404));
+        throw new ApiError(404,"User not found");
     }
     if(book.quantity===0){
-        return next(new ErrorHandler("Book not available", 404));
+        throw new ApiError(404,"Book not available");
     }
     const isAlreadyBorrowed= user.borrowedBooks.find((b) => b.bookId.toString() === id.toString() && b.returned === false);
     if(isAlreadyBorrowed){
-        return next(new ErrorHandler("Book already borrowed", 404));
+        throw new ApiError(404,"Book already borrowed");
     }
     book.quantity-=1;
     book.availability=book.quantity>0;
@@ -64,39 +62,33 @@ const recordBorrowedBooks=catchAsyncErrors(async (req, res, next) => {
         dueDate: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
         price: book.price,
     });
-    res.status(200).json({
-        success: true,
-        message: "Book borrowed successfully",
-    });
+    return res.status(200).json(new ApiResponse(200,book,"Book borrowed successfully"));
 
 });
-const getBorrowedBooksForAdmin=catchAsyncErrors(async (req, res, next) => {
+const getBorrowedBooksForAdmin=asyncHandler(async (req, res, next) => {
     const borrowedBooks=await Borrow.find();
     if(borrowedBooks.length===0){
-        return next(new ErrorHandler("No borrowed books", 404));
+        throw new ApiError(404,"No borrowed books found");
     }
-    res.status(200).json({
-        success: true,
-        borrowedBooks,
-    });
+    return res.status(200).json(new ApiResponse(200,borrowedBooks,"Borrowed books fetched successfully"));
 });
 
-const returnBorrowedBook=catchAsyncErrors(async (req, res, next) => {
+const returnBorrowedBook=asyncHandler(async (req, res, next) => {
     // TODO: return borrowed book
 
     const {bookId} = req.params;
     const {email} = req.body;
     const book=await Book.findById(bookId);
     if(!book){
-        return next(new ErrorHandler("Book not found", 404));
+        throw new ApiError(404,"Book not found");
     }
     const user=await User.findOne({email,accountVerified: true});
     if(!user){
-        return next(new ErrorHandler("User not found", 404));
+        throw new ApiError(404,"User not found");
     }
     const borrowedBook = user.borrowedBooks.find((b) => b.bookId.toString() === bookId && b.returned === false);
     if(!borrowedBook){
-        return next(new ErrorHandler("Book not borrowed", 404));
+        throw new ApiError(404,"Book not borrowed by user");
     }
     borrowedBook.returned = true;
     await user.save();
@@ -110,16 +102,16 @@ const returnBorrowedBook=catchAsyncErrors(async (req, res, next) => {
         returnDate: null,
     });
     if(!borrow){
-        return next(new ErrorHandler("Borrow record not found", 404));
+        throw new ApiError(404,"Borrow record not found");
     }
     borrow.returnDate = new Date();
     const fine=calculateFine(borrow.dueDate);
     borrow.fine = fine;
     await borrow.save();
-    res.status(200).json({
+    return res.status(200).json(new ApiResponse(200,{
         success: true,
         message: fine!==0?`Book returned successfully the total charges including the fine is ₹ ${fine+book.price}`:`Book returned successfully the total charges is ₹ ${book.price}`,
-    });
+    }));
 });
 
 

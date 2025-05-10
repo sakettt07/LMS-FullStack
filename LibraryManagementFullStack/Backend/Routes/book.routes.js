@@ -4,9 +4,10 @@ import { authorizeRoles, isAuthenticated } from '../Middlewares/auth.middleware.
 
 const router = express.Router();
 
-router.route('/add').post(isAuthenticated,authorizeRoles("Admin"), addBook);
-router.route('/').get(isAuthenticated, getAllBooks);
-router.route('/:id').get(isAuthenticated, getBookById);
-router.route('/delete/:id').delete(isAuthenticated,authorizeRoles("Admin"), deleteBook);
+router.use(isAuthenticated);
+router.route('/add').post(authorizeRoles("Admin"), addBook);
+router.route('/').get( getAllBooks);
+router.route('/:id').get( getBookById);
+router.route('/delete/:id').delete(authorizeRoles("Admin"), deleteBook);
 
 export default router;
