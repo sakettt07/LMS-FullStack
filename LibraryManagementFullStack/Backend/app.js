@@ -8,6 +8,8 @@ import userRoutes from './Routes/user.routes.js';
 import bookRoutes from './Routes/book.routes.js';
 import borrowRoutes from './Routes/borrow.routes.js';
 import "colors";
+import { notifyUser } from './Services/notifyUser.js';
+import { removeUnverifiedAccounts } from './Services/removeUnverifiedAccounts.js';
 
 const app = express();
 
@@ -33,7 +35,10 @@ app.use(fileUpload({
  app.use("/api/v1/book",bookRoutes);
  app.use("/api/v1/borrow",borrowRoutes);
 
+notifyUser();
+removeUnverifiedAccounts();
 connectDB();
+
 
 
  export{app};
