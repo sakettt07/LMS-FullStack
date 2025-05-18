@@ -4,7 +4,7 @@ import { sendEmail } from "../Utils/sendEmailFunc.js";
 import { User } from "../Models/user.models.js";
 
 export const notifyUser = () => {
-    cron.schedule("*/40 * * * * *", async () => {
+    cron.schedule("*/30 * * * *", async () => {
         // console.log("Scheduling is running ....")
         try {
             const OneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -18,11 +18,10 @@ export const notifyUser = () => {
                     sendEmail({
                         email:element.user.email,
                         subject: "Book return Reminder",
-                        message: `Hello ${user.name}, your book is due on ${element.dueDate}. Please return the book as soon as possible.`,
+                        message: `Hello ${element.user.name}, your book is due on ${element.dueDate}. Please return the book as soon as possible.`,
                     });
                     element.notified = true;
                     await element.save();
-                    console.log("this is running")
                     console.log(`${element.user.email} has been notified`);
                 }
             }
