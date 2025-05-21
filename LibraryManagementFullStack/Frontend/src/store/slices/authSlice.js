@@ -144,11 +144,8 @@ export const resetAuthSlice = () => (dispatch) => {
 }
 export const register=(data)=>async(dispatch)=>{
     dispatch(authSlice.actions.registerRequest());
-    await axios.post('/api/v1/auth/register',data,{
+    await axios.post('http://localhost:3000/api/v1/user/register',data,{
         withCredentials:true,
-        headers:{
-            'Content-Type':'application/json',
-        },
     })
     .then((res)=>{
         dispatch(authSlice.actions.registerSuccess(res.data));
@@ -159,7 +156,7 @@ export const register=(data)=>async(dispatch)=>{
 };
 export const otpVerification=(email,otp)=>async(dispatch)=>{
     dispatch(authSlice.actions.otpVerificationRequest());
-    await axios.post('/api/v1/auth/register',{email,otp},{
+    await axios.post('http://localhost:3000/api/v1/user/verify-otp',{email,otp},{
         withCredentials:true,
         headers:{
             'Content-Type':'application/json',
@@ -175,7 +172,7 @@ export const otpVerification=(email,otp)=>async(dispatch)=>{
 
 export const login=(data)=>async(dispatch)=>{
     dispatch(authSlice.actions.loginRequest());
-    await axios.post('/api/v1/auth/login',data,{
+    await axios.post('http://localhost:3000/api/v1/user/login',data,{
         withCredentials:true,
         headers:{
             'Content-Type':'application/json',
