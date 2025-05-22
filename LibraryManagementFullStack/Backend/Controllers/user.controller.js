@@ -80,6 +80,7 @@ const registerUser = asyncHandler(async (req, res, next) => {
 });
 
 const verifyOtp = asyncHandler(async (req, res, next) => {
+  console.log("Incoming request:", req.body);
   const { email, verificationCode } = req.body;
   if (!email || !verificationCode) {
     throw new ApiError(400, "Please enter all fields");
@@ -89,7 +90,7 @@ const verifyOtp = asyncHandler(async (req, res, next) => {
       email,
       accountVerified: false,
     }).sort({ createdAt: -1 });
-    if (!userAllEntries) {
+    if (!userAllEntries||userAllEntries.length === 0) {
       throw new ApiError(404, "User not found");
     }
     let user;

@@ -19,9 +19,9 @@ const Otp = () => {
     dispatch(otpVerification(email,otp));
   }
    useEffect(() => {
-      if (message) {
-        toast.success(message);
-      }
+      // if (message) {
+      //   toast.success(message);
+      // }
       if (error) {
         toast.error(error);
         dispatch(resetAuthSlice());
@@ -41,19 +41,19 @@ const Otp = () => {
             Back
           </Link>
           <div className="max-w-sm w-full">
-            <div className="flex justify-center mb-12">
+            <div className="flex justify-center mb-2 -md:mb-20">
               <div className="rounded-full flex items-center justify-center">
-                <img src={BookWebLogo} alt="Logo" className="h-24 w-auto" />
+                <img src={BookWebLogo} alt="Logo" className="w-88" />
               </div>
             </div>
-            <h1 className="text-4xl font-medium text-center mb-12 overflow-hidden">
+            <h1 className="text-4xl font-medium text-center mb-12 md:mb-6 overflow-hidden">
               Check your mailbox
             </h1>
-            <p className="text-gray-800 text-center mb-12">
+            <p className="text-gray-800 text-center mb-3">
               Please enter the otp to proceed
             </p>
             <form onSubmit={handleOtpVerification}>
-              <div className="mb-4">
+              <div>
                 <input
                   type="number"
                   placeholder="OTP"
