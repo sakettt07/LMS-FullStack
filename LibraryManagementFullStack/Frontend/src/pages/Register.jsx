@@ -90,7 +90,7 @@ const Register = () => {
                 className="w-full px-4 py-3 border border-black rounded-md focus:outline-none"
               />
             </div>
-              <h2 className="text-red-600 flex items-center gap-2 justify-center mb-2"><FaInfoCircle /> Please enter correct email to receieve an OTP</h2>
+              <h2 className="text-red-600 flex items-center gap-2 justify-center mb-2"><FaInfoCircle /> Please enter correct email to recieve an OTP</h2>
             <div className="mb-2">
               <input
                 type="email"

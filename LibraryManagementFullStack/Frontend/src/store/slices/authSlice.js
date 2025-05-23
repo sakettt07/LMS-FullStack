@@ -212,7 +212,7 @@ export const getUser=()=>async(dispatch)=>{
 };
 export const forgotPassword=(email)=>async(dispatch)=>{
     dispatch(authSlice.actions.forgotPasswordRequest());
-    await axios.post('/api/v1/auth/forgotpassword',{email},{
+    await axios.post('http://localhost:3000/api/v1/user/password/forgot',{email},{
         withCredentials:true,
         headers:{
             'Content-Type':'application/json',
@@ -227,7 +227,7 @@ export const forgotPassword=(email)=>async(dispatch)=>{
 };
 export const resetPassword=(data,token)=>async(dispatch)=>{
     dispatch(authSlice.actions.resetPasswordRequest());
-    await axios.put('/api/v1/auth/resetpassword',data,{
+    await axios.put('http://localhost:3000/api/v1/user/password/reset/fff8e0e36d0f17de78a28889f26182b0c338083b',data,{
         withCredentials:true,
         headers:{
             'Content-Type':'application/json',
@@ -242,7 +242,7 @@ export const resetPassword=(data,token)=>async(dispatch)=>{
 };
 export const updatePassword=(data)=>async(dispatch)=>{
     dispatch(authSlice.actions.updatePasswordRequest());
-    await axios.put('/api/v1/auth/updatepassword',data,{
+    await axios.put('http://localhost:3000/api/v1/user/password/update',data,{
         withCredentials:true,
         headers:{
             'Content-Type':'application/json',
